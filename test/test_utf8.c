@@ -1,6 +1,6 @@
 /*
  * test_utf8.c
- * Copyright (c) 2019-2021  K.Kosako
+ * Copyright (c) 2019-2025  K.Kosako
  */
 #ifdef ONIG_ESCAPE_UCHAR_COLLISION
 #undef ONIG_ESCAPE_UCHAR_COLLISION
@@ -64,7 +64,7 @@ static void xx(char* pattern, char* str, int from, int to, int mem, int not,
   r = onig_search(reg, (UChar* )str, (UChar* )(str + SLEN(str)),
                   (UChar* )str, (UChar* )(str + SLEN(str)),
                   region, ONIG_OPTION_NONE);
-  if (r < ONIG_MISMATCH) {
+  if (r < ONIG_MISMATCH || error_no < ONIG_MISMATCH) {
     char s[ONIG_MAX_ERROR_MESSAGE_LEN];
 
     if (error_no == 0) {
@@ -226,6 +226,27 @@ extern int main(int argc, char* argv[])
   x2("[*[:xdigit:]+]", "-@^+", 3, 4);
   n("[[:upper]]", "A");
   x2("[[:upper]]", ":", 0, 1);
+  n("[[:upper:]]", "a");
+  x2("[[:^upper:]]", "a", 0, 1);
+  n("[[:lower:]]", "A");
+  x2("[[:^lower:]]", "A", 0, 1);
+
+  // Issue #253
+  e("[[:::]",   ":[", ONIGERR_PREMATURE_END_OF_CHAR_CLASS);
+  e("[[:\\]:]", ":]", ONIGERR_PREMATURE_END_OF_CHAR_CLASS);
+  e("[[:\\[:]", ":[", ONIGERR_PREMATURE_END_OF_CHAR_CLASS);
+  e("[[:\\]]",  ":]", ONIGERR_PREMATURE_END_OF_CHAR_CLASS);
+  e("[[:u:]]",      "", ONIGERR_INVALID_POSIX_BRACKET_TYPE);
+  e("[[:upp:]]",    "", ONIGERR_INVALID_POSIX_BRACKET_TYPE);
+  e("[[:uppers:]]", "", ONIGERR_INVALID_POSIX_BRACKET_TYPE);
+  x2("[[:upper\\] :]]",  "]", 0, 1);
+
+  x2("[[::]]",     ":", 0, 1);
+  x2("[[:::]]",    ":", 0, 1);
+  x2("[[:\\]:]]*", ":]", 0, 2);
+  x2("[[:\\[:]]*", ":[", 0, 2);
+  x2("[[:\\]]]*",  ":]", 0, 2);
+
   x2("[\\044-\\047]", "\046", 0, 1);
   x2("[\\x5a-\\x5c]", "\x5b", 0, 1);
   x2("[\\x6A-\\x6D]", "\x6c", 0, 1);
@@ -699,6 +720,8 @@ extern int main(int argc, char* argv[])
   x2("(?:(?<x>)|(?<x>efg))\\k<x>", "", 0, 0);
   x2("(?:(?<x>abc)|(?<x>efg))\\k<x>", "abcefgefg", 3, 9);
   n("(?:(?<x>abc)|(?<x>efg))\\k<x>", "abcefg");
+  x2("(?<x>x)(?<x>xx)\\k<x>", "xxxx", 0, 4);
+  x2("(?<x>x)(?<x>xx)\\k<x>", "xxxxz", 0, 4);
   x2("(?:(?<n1>.)|(?<n1>..)|(?<n1>...)|(?<n1>....)|(?<n1>.....)|(?<n1>......)|(?<n1>.......)|(?<n1>........)|(?<n1>.........)|(?<n1>..........)|(?<n1>...........)|(?<n1>............)|(?<n1>.............)|(?<n1>..............))\\k<n1>$", "a-pyumpyum", 2, 10);
   x3("(?:(?<n1>.)|(?<n1>..)|(?<n1>...)|(?<n1>....)|(?<n1>.....)|(?<n1>......)|(?<n1>.......)|(?<n1>........)|(?<n1>.........)|(?<n1>..........)|(?<n1>...........)|(?<n1>............)|(?<n1>.............)|(?<n1>..............))\\k<n1>$", "xxxxabcdefghijklmnabcdefghijklmn", 4, 18, 14);
   x3("(?<name1>)(?<name2>)(?<name3>)(?<name4>)(?<name5>)(?<name6>)(?<name7>)(?<name8>)(?<name9>)(?<name10>)(?<name11>)(?<name12>)(?<name13>)(?<name14>)(?<name15>)(?<name16>aaa)(?<name17>)$", "aaa", 0, 3, 16);
@@ -729,7 +752,7 @@ extern int main(int argc, char* argv[])
   n("\\A(a|b\\g<1>c)\\k<1+3>\\z", "bbaccb");
   x2("(?i)\\A(a|b\\g<1>c)\\k<1+2>\\z", "bBACcbac", 0, 8);
   x2("(?i)(?<X>aa)|(?<X>bb)\\k<X>", "BBbb", 0, 4);
-  x2("(?:\\k'+1'B|(A)C)*", "ACAB", 0, 4); // relative backref by postitive number
+  x2("(?:\\k'+1'B|(A)C)*", "ACAB", 0, 4); // relative backref by positive number
   x2("\\g<+2>(abc)(ABC){0}", "ABCabc", 0, 6); // relative call by positive number
   x2("A\\g'0'|B()", "AAAAB", 0, 5);
   x3("(A\\g'0')|B", "AAAAB", 0, 5, 1);
@@ -1158,6 +1181,24 @@ extern int main(int argc, char* argv[])
   x2("\\p{^Emoji}", "\xEF\xBC\x93", 0, 3);
   x2("\\p{Extended_Pictographic}", "\xE2\x9A\xA1", 0, 3);
   n("\\p{Extended_Pictographic}", "\xE3\x81\x82");
+  x2("\\pC", "\xC2\xAD", 0, 2); // U+00AD: Soft Hyphen
+  x2("\\pL", "U", 0, 1);
+  x2("\\pM", "\xE2\x83\x9D", 0, 3); // U+20DD: Combining Enclosing Circle
+  x2("\\pN+", "3Ⅴ", 0, 4);
+  x2("\\pP+", "†⁂", 0, 6);
+  x2("\\pS+", "€₤", 0, 6);
+  x2("\\pZ+", " ", 0, 1);
+  n("\\pL", "@");
+  x2("\\pL+", "akZtE", 0, 5);
+  x2("\\PL+", "1@=-%", 0, 5);
+  e("\\p", "", ONIGERR_INVALID_CHAR_PROPERTY_NAME);
+  e("\\p(", "", ONIGERR_INVALID_CHAR_PROPERTY_NAME);
+  e("\\pQ", "", ONIGERR_INVALID_CHAR_PROPERTY_NAME);
+  x2("[\\pL]", "s", 0, 1);
+  n("[^\\pL]", "s");
+  x2("[\\PL]+", "-3@", 0, 3);
+  e("[\\p]", "", ONIGERR_INVALID_CHAR_PROPERTY_NAME);
+  e("[\\pU]", "", ONIGERR_INVALID_CHAR_PROPERTY_NAME);
 
   x2("\\p{Word}", "こ", 0, 3);
   n("\\p{^Word}", "こ");
@@ -1321,6 +1362,13 @@ extern int main(int argc, char* argv[])
   x2("\\u4E38", "\xE4\xB8\xB8", 0, 3);
   x2("\\u0040", "@", 0, 1);
 
+  e("\\xF4", "", ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
+  e("\\xF5", "", ONIGERR_INVALID_CODE_POINT_VALUE);
+  e("\\xFF", "", ONIGERR_INVALID_CODE_POINT_VALUE);
+  e("[\\xF4]", "", ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
+  e("[\\xF5]", "", ONIGERR_INVALID_CODE_POINT_VALUE);
+  e("[\\x00-\\xFF]", "", ONIGERR_INVALID_CODE_POINT_VALUE);
+
   x2("c.*\\b", "abc", 2, 3);
   x2("\\b.*abc.*\\b", "abc", 0, 3);
   x2("((?()0+)+++(((0\\g<0>)0)|())++++((?(1)(0\\g<0>))++++++0*())++++((?(1)(0\\g<1>)+)++++++++++*())++++((?(1)((0)\\g<0>)+)++())+0++*+++(((0\\g<0>))*())++++((?(1)(0\\g<0>)+)++++++++++*|)++++*+++((?(1)((0)\\g<0>)+)+++++++++())++*|)++++((?()0))|", "abcde", 0, 0); // #139
@@ -1458,6 +1506,15 @@ extern int main(int argc, char* argv[])
   n("(\\k<2>)|(?<=(\\k<1>))", "");
   x2("(a|\\k<2>)|(?<=(\\k<1>))", "a", 0, 1);
   x2("(a|\\k<2>)|(?<=b(\\k<1>))", "ba", 1, 2);
+  // #295
+  n("(?<!RMA)X", "123RMAX");
+  x2("(?<=RMA)X", "123RMAX", 6, 7);
+  n("(?<!RMA)$", "123RMA");
+  x2("(?<=RMA)$", "123RMA", 6, 6);
+  n("(?<!RMA)\\Z", "123RMA");
+  x2("(?<=RMA)\\Z", "123RMA", 6, 6);
+  n("(?<!RMA)\\z", "123RMA");
+  x2("(?<=RMA)\\z", "123RMA", 6, 6);
 
   x2("((?(a)\\g<1>|b))", "aab", 0, 3);
   x2("((?(a)\\g<1>))", "aab", 0, 2);
@@ -1597,14 +1654,114 @@ extern int main(int argc, char* argv[])
   x2("[\\W\\x{0063 0071}]+", "*cqa", 0, 3);
   x2("(\\O|(?=z\\g<2>*))(\\g<0>){0}", "a", 0, 1);
 
+  /* whole options */
+  x2("(?Ii)abc", "abc", 0, 3);
+  x2("(?Ii)abc", "ABC", 0, 3);
+  x2("(?Ii:abc)", "abc", 0, 3);
+  x2("(?Ii)xyz|abc", "aBc", 0, 3);
+  x2("(?Ii:zz|abc|AZ)", "ABc", 0, 3);
+  e("(?Ii:abc)d", "abc", ONIGERR_INVALID_GROUP_OPTION);
+  e("(?-Ii:abc)", "abc", ONIGERR_INVALID_GROUP_OPTION);
+  x2("(?I-i:abc)", "abc", 0, 3);
+  e("(?i-I:abc)", "abc", ONIGERR_INVALID_GROUP_OPTION);
+  x2("(?i)\xe2\x84\xaa", "k", 0, 1);
+  n("(?Ii)\xe2\x84\xaa", "k");
+  e("((?Ii)abc)", "", ONIGERR_INVALID_GROUP_OPTION);
+  x2("(?:(?Ii)abc)", "ABC", 0, 3);
+  x2("(?:(?:(?Ii)abc))", "ABC", 0, 3);
+  e("x(?Ii)", "", ONIGERR_INVALID_GROUP_OPTION);
+  e("()(?Ii)", "", ONIGERR_INVALID_GROUP_OPTION);
+  e("(?:)(?Ii)", "", ONIGERR_INVALID_GROUP_OPTION);
+  e("^(?Ii)", "", ONIGERR_INVALID_GROUP_OPTION);
+  x2("(?Ii)$", "", 0, 0);
+  x2("(?Ii)|", "", 0, 0);
+  e("(?Ii)|(?Ii)", "", ONIGERR_INVALID_GROUP_OPTION);
+  x2("a*", "aabcaaa", 0, 2);
+  x2("(?L)a*", "aabcaaa", 4, 7);
+  x2("(?L)a{4}|a{3}|b*", "baaaaabbb", 1, 5);
+  x2("(?L)a{3}|a{4}|b*", "baaaaabbb", 1, 5);
+  e("x(?L)xxxxx", "", ONIGERR_INVALID_GROUP_OPTION);
+  e("(?-L)x", "", ONIGERR_INVALID_GROUP_OPTION);
+  x3("(..)\\1", "abab", 0, 2, 1);
+  e("(?C)(..)\\1", "abab", ONIGERR_INVALID_BACKREF);
+  e("(?-C)", "", ONIGERR_INVALID_GROUP_OPTION);
+  e("(?C)(.)(.)(.)(?<name>.)\\1", "abcdd", ONIGERR_NUMBERED_BACKREF_OR_CALL_NOT_ALLOWED);
+  x2("(?L)z|a\\g<0>a", "aazaa", 0, 5);
+  x2("(?Li)z|a\\g<0>a", "aazAA", 0, 5);
+  x2("(?Li:z|a\\g<0>a)", "aazAA", 0, 5);
+  x2("(?L)z|a\\g<0>a", "aazaaaazaaaa", 3, 12);
+
+  // Issue #264
+  n("(?iI)s", "\xc5\xbf");
+  n("(?iI)[s]", "\xc5\xbf");    // FAIL
+  n("(?iI:s)", "\xc5\xbf");
+  n("(?iI:[s])", "\xc5\xbf");    // FAIL
+  x2("(?iI)(?:[[:word:]])", "\xc5\xbf", 0, 2);
+  n("(?iI)(?W:[[:word:]])", "\xc5\xbf");     // FAIL
+  n("(?iI)(?W:\\w)", "\xc5\xbf");
+  n("(?iI)(?W:[\\w])", "\xc5\xbf");     // FAIL
+  n("(?iI)(?W:\\p{Word})", "\xc5\xbf");
+  n("(?iI)(?W:[\\p{Word}])", "\xc5\xbf");     // FAIL
+
+  x2("(?iW:[[:word:]])",  "\xc5\xbf", 0, 2);
+  x2("(?iW:[\\p{Word}])", "\xc5\xbf", 0, 2);
+  x2("(?iW:[\\w])",       "\xc5\xbf", 0, 2);
+  n("(?iW:\\p{Word})",    "\xc5\xbf");
+  n("(?iW:\\w)",          "\xc5\xbf");
+  x2("(?i)\\p{Word}",     "\xc5\xbf", 0, 2);
+  x2("(?i)\\w",           "\xc5\xbf", 0, 2);
+
+  x2("(?iW:[[:^word:]])",  "\xc5\xbf", 0, 2);
+  x2("(?iW:[\\P{Word}])",  "\xc5\xbf", 0, 2);
+  x2("(?iW:[\\W])",        "\xc5\xbf", 0, 2);
+  x2("(?iW:\\P{Word})",    "\xc5\xbf", 0, 2);
+  x2("(?iW:\\W)",          "\xc5\xbf", 0, 2);
+  n("(?i)\\P{Word}",      "\xc5\xbf");
+  n("(?i)\\W",            "\xc5\xbf");
+
+  x2("(?iW:[[:^word:]])",  "s", 0, 1);
+  x2("(?iW:[\\P{Word}])",  "s", 0, 1);
+  x2("(?iW:[\\W])",        "s", 0, 1);
+  n("(?iW:\\P{Word})",     "s");
+  n("(?iW:\\W)",           "s");
+  n("(?i)\\P{Word}",       "s");
+  n("(?i)\\W",             "s");
+
+  x2("[[:punct:]]", ":", 0, 1);
+  x2("[[:punct:]]", "$", 0, 1);
+  x2("[[:punct:]]+", "$+<=>^`|~", 0, 9);
+  n("[[:punct:]]", "a");
+  n("[[:punct:]]", "7");
+  x2("\\p{PosixPunct}+", "$¦", 0, 3);
+
+  x2("\\A.*\\R", "\n", 0, 1);
+  x2("\\A\\O*\\R", "\n", 0, 1);
+  x2("\\A\\n*\\R", "\n", 0, 1);
+  x2("\\A\\R*\\R", "\n", 0, 1);
+  x2("\\At*\\R", "\n", 0, 1);
+
+  x2("\\A.{0,99}\\R", "\n", 0, 1);
+  x2("\\A\\O{0,99}\\R", "\n", 0, 1);
+  x2("\\A\\n{0,99}\\R", "\n", 0, 1);
+  x2("\\A\\R{0,99}\\R", "\n", 0, 1);
+  x2("\\At{0,99}\\R", "\n", 0, 1);
+
+  x2("\\A.*\\n", "\n", 0, 1);       //  \n
+  x2("\\A.{0,99}\\n", "\n", 0, 1);
+  x2("\\A.*\\O", "\n", 0, 1);       //  \O
+  x2("\\A.{0,99}\\O", "\n", 0, 1);
+  x2("\\A.*\\s", "\n", 0, 1);       //  \s
+  x2("\\A.{0,99}\\s", "\n", 0, 1);
+
+
   n("a(b|)+d", "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcd"); /* https://www.haijin-boys.com/discussions/5079 */
-  n("   \xfd", ""); /* https://bugs.php.net/bug.php?id=77370 */
+  e("   \xfd", "", ONIGERR_INVALID_CODE_POINT_VALUE); /* https://bugs.php.net/bug.php?id=77370 */
   /* can't use \xfc00.. because compiler error: hex escape sequence out of range */
-  n("()0\\xfc00000\\xfc00000\\xfc00000\xfc", ""); /* https://bugs.php.net/bug.php?id=77371 */
-  x2("000||0\xfa", "0", 0, 0); /* https://bugs.php.net/bug.php?id=77381 */
+  e("()0\\xfc00000\\xfc00000\\xfc00000\xfc", "", ONIGERR_INVALID_CODE_POINT_VALUE); /* https://bugs.php.net/bug.php?id=77371 */
+  e("000||0\xfa", "0", ONIGERR_INVALID_CODE_POINT_VALUE); /* https://bugs.php.net/bug.php?id=77381 */
   e("(?i)000000000000000000000\xf0", "", ONIGERR_INVALID_CODE_POINT_VALUE); /* https://bugs.php.net/bug.php?id=77382 */
-  n("0000\\\xf5", "0"); /* https://bugs.php.net/bug.php?id=77385 */
-  n("(?i)FFF00000000000000000\xfd", ""); /* https://bugs.php.net/bug.php?id=77394 */
+  e("0000\\\xf5", "0", ONIGERR_INVALID_CODE_POINT_VALUE); /* https://bugs.php.net/bug.php?id=77385 */
+  e("(?i)FFF00000000000000000\xfd", "", ONIGERR_INVALID_CODE_POINT_VALUE); /* https://bugs.php.net/bug.php?id=77394 */
   n("(?x)\n  (?<!\\+\\+|--)(?<=[({\\[,?=>:*]|&&|\\|\\||\\?|\\*\\/|^await|[^\\._$[:alnum:]]await|^return|[^\\._$[:alnum:]]return|^default|[^\\._$[:alnum:]]default|^yield|[^\\._$[:alnum:]]yield|^)\\s*\n  (?!<\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s+[^=>])|,)) # look ahead is not type parameter of arrow\n  (?=(<)\\s*(?:([_$[:alpha:]][-_$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-_$[:alnum:].]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>))", "    while (i < len && f(array[i]))"); /* Issue #192 */
 
   x2("aaaaaaaaaaaaaaaaaaaaaaaあb", "aaaaaaaaaaaaaaaaaaaaaaaあb", 0, 27); /* Issue #221 */
@@ -1621,6 +1778,7 @@ extern int main(int argc, char* argv[])
   e("\\x{7fffffff}", "", ONIGERR_INVALID_CODE_POINT_VALUE);
   e("[\\x{7fffffff}]", "", ONIGERR_INVALID_CODE_POINT_VALUE);
   e("\\u040", "@", ONIGERR_INVALID_CODE_POINT_VALUE);
+  e("\\u", "", ONIGERR_INVALID_CODE_POINT_VALUE);
   e("(?<abc>\\g<abc>)", "zzzz", ONIGERR_NEVER_ENDING_RECURSION);
   e("(*FOO)", "abcdefg", ONIGERR_UNDEFINED_CALLOUT_NAME);
   e("*", "abc", ONIGERR_TARGET_OF_REPEAT_OPERATOR_NOT_SPECIFIED);
@@ -1630,6 +1788,7 @@ extern int main(int argc, char* argv[])
   e("(?m:*)", "abc", ONIGERR_TARGET_OF_REPEAT_OPERATOR_NOT_SPECIFIED);
   x2("(?:)*", "abc", 0, 0);
   e("^*", "abc", ONIGERR_TARGET_OF_REPEAT_OPERATOR_INVALID);
+  e("abc|?", "", ONIGERR_TARGET_OF_REPEAT_OPERATOR_NOT_SPECIFIED);
 
   fprintf(stdout,
        "\nRESULT   SUCC: %4d,  FAIL: %d,  ERROR: %d      (by Oniguruma %s)\n",

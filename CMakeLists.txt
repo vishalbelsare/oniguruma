@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.1...3.5)
 project(oniguruma
-  VERSION 6.9.7
+  VERSION 6.9.10
   LANGUAGES C)
 
 set(PACKAGE onig)
@@ -9,8 +9,10 @@ set(PACKAGE_VERSION ${PROJECT_VERSION})
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(ENABLE_POSIX_API  "Include POSIX API" OFF)
 option(ENABLE_BINARY_COMPATIBLE_POSIX_API  "Include Binary compatible POSIX API" OFF)
+option(ENABLE_STATISTICS  "Include statistics API" OFF)
 option(INSTALL_DOCUMENTATION "Install documentation" ON)
 option(INSTALL_EXAMPLES "Install examples" OFF)
+option(BUILD_TEST "Build tests" ON)
 if(MSVC)
   option(MSVC_STATIC_RUNTIME "Build with static runtime" OFF)
 endif()
@@ -29,18 +31,27 @@ check_include_files(alloca.h HAVE_ALLOCA_H)
 check_include_files(stdint.h    HAVE_STDINT_H)
 check_include_files(sys/times.h HAVE_SYS_TIMES_H)
 check_include_files(sys/time.h  HAVE_SYS_TIME_H)
+check_include_files(time.h      HAVE_TIME_H)
 check_include_files(sys/types.h HAVE_SYS_TYPES_H)
 check_include_files(unistd.h    HAVE_UNISTD_H)
 check_include_files(inttypes.h  HAVE_INTTYPES_H)
 check_type_size(int SIZEOF_INT)
+check_type_size(intptr_t SIZEOF_INTPTR_T)
 check_type_size(long SIZEOF_LONG)
 check_type_size("long long" SIZEOF_LONG_LONG)
 check_type_size("void*" SIZEOF_VOIDP)
+if(HAVE_TIME_H)
+  check_type_size(time_t SIZEOF_TIME_T)
+endif()
 
 if(HAVE_ALLOCA_H)
   check_symbol_exists(alloca "alloca.h" HAVE_ALLOCA)
 else()
   check_symbol_exists(alloca "stdlib.h;malloc.h" HAVE_ALLOCA)
+endif()
+
+if(HAVE_TIME_H)
+  check_symbol_exists(clock_gettime time.h HAVE_CLOCK_GETTIME)
 endif()
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
@@ -70,6 +81,10 @@ endif()
 
 if(ENABLE_BINARY_COMPATIBLE_POSIX_API)
   add_definitions("-DUSE_BINARY_COMPATIBLE_POSIX_API")
+endif()
+
+if(ENABLE_STATISTICS)
+  add_definitions("-DONIG_DEBUG_STATISTICS")
 endif()
 
 add_library(onig ${_SRCS})
@@ -140,7 +155,7 @@ set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
 set(TARGETS_EXPORT_NAME "${PROJECT_NAME}Targets")
 set(namespace "${PROJECT_NAME}::")
 
-# Include module with fuction 'write_basic_package_version_file'
+# Include module with function 'write_basic_package_version_file'
 include(CMakePackageConfigHelpers)
 
 # Configure '<PROJECT-NAME>ConfigVersion.cmake'
@@ -159,6 +174,12 @@ configure_package_config_file(
     "${project_config}"
     INSTALL_DESTINATION "${config_install_dir}"
 )
+
+if(CMAKE_INSTALL_LIBDIR MATCHES "^/")
+    set(onig_pkgconfig_libdir "${CMAKE_INSTALL_LIBDIR}")
+else()
+    set(onig_pkgconfig_libdir "\${exec_prefix}/${CMAKE_INSTALL_LIBDIR}")
+endif()
 
 # Targets:
 #   * <prefix>/lib*/libonig.a
@@ -212,8 +233,8 @@ endif()
 # Examples
 if(INSTALL_EXAMPLES)
 install(FILES sample/bug_fix.c sample/callback_each_match.c
-              sample/callout.c sample/count.c sample/crnl.c
-              sample/echo.c sample/encode.c sample/listcap.c
+              sample/callout.c sample/count.c sample/echo.c
+              sample/encode.c sample/listcap.c
               sample/names.c sample/posix.c sample/regset.c
               sample/scan.c sample/simple.c sample/sql.c
               sample/syntax.c sample/user_property.c
@@ -231,3 +252,11 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/oniguruma.pc
 
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/onig-config
         DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+# Test
+if(BUILD_TEST)
+  add_subdirectory(test)
+  if(CMAKE_COMPILER_IS_GNUCC)
+    add_subdirectory(windows)
+  endif()
+endif(BUILD_TEST)

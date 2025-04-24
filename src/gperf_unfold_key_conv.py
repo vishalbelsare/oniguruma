@@ -1,7 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # gperf_unfold_key_conv.py
-# Copyright (c) 2016-2018  K.Kosako
+# Copyright (c) 2016-2025  K.Kosako
 
 import sys
 import re
@@ -16,6 +16,7 @@ REG_IF_LEN = re.compile('\s*if\s*\(\s*len\s*<=\s*MAX_WORD_LENGTH.+')
 REG_GET_HASH = re.compile('(?:register\s+)?(?:unsigned\s+)?int\s+key\s*=\s*hash\s*\(str,\s*len\);')
 REG_GET_CODE = re.compile('(?:register\s+)?const\s+char\s*\*\s*s\s*=\s*wordlist\[key\]\.name;')
 REG_CODE_CHECK = re.compile('if\s*\(\*str\s*==\s*\*s\s*&&\s*!strncmp.+\)')
+REG_VOID_LEN = re.compile('^\s*\(void\s*\)\s*len\s*;')
 
 def parse_line(s):
     s = s.rstrip()
@@ -40,16 +41,18 @@ def parse_line(s):
     if r != s: return r
     r = re.sub(REG_CODE_CHECK, 'if (code == gcode && wordlist[key].index >= 0)', s)
     if r != s: return r
+    r = re.sub(REG_VOID_LEN, '', s)
+    if r != s: return r
 
     return s
 
 def parse_file(f):
-    print "/* This file was converted by gperf_unfold_key_conv.py\n      from gperf output file. */"
+    print("/* This file was converted by gperf_unfold_key_conv.py\n      from gperf output file. */")
 
     line = f.readline()
     while line:
         s = parse_line(line)
-        print s
+        print(s)
         line = f.readline()
 
 

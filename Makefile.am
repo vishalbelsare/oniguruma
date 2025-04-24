@@ -11,10 +11,11 @@ EXTRA_DIST = oniguruma.pc.in HISTORY README_japanese README.md \
 	doc/API doc/API.ja doc/RE doc/RE.ja doc/FAQ doc/FAQ.ja \
 	doc/CALLOUTS.BUILTIN doc/CALLOUTS.BUILTIN.ja \
 	doc/CALLOUTS.API doc/CALLOUTS.API.ja \
-	doc/SYNTAX.md doc/UNICODE_PROPERTIES \
+	doc/SYNTAX.md doc/onig_syn_md.c doc/UNICODE_PROPERTIES \
 	src/Makefile.windows src/config.h.windows.in \
 	src/config.h.win32 src/config.h.win64 \
-	windows/testc.c
+	test/test.sh test/CMakeLists.txt \
+        windows/testc.c windows/CMakeLists.txt
 
 bin_SCRIPTS = onig-config
 
@@ -34,7 +35,7 @@ oniguruma.pc: $(srcdir)/oniguruma.pc.in Makefile
 
 pkgconfigdir   = $(libdir)/pkgconfig
 pkgconfig_DATA = oniguruma.pc
-
+DISTCLEANFILES = oniguruma.pc
 
 all-test:
 	cd test; make test
